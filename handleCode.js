@@ -187,13 +187,8 @@ function parseJsonManifest(data) {
 }
 
 function readFiles(zip, pathObj) {
-    const sourceCode = {
-        html: '',
-        css: '',
-        js: '',
-        fields: '',
-        data: '',
-    };
+    const sourceCode = { html: '', css: '', js: '', fields: '', data: '' };
+
     let fieldsLeft = Object.keys(sourceCode).length;
     Object.keys(sourceCode).forEach((k) => {
         zip.files[pathObj[k]].async('string').then((data) => {
