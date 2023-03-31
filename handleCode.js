@@ -73,36 +73,57 @@ function handleFile(file, type) {
     }
 }
 
-function loadZipAndPopulateSeInputFields(file) {
-    const zip = new JSZip();
-    zip.loadAsync(file).then((zip) => {
-        $('.zip-select span').text(file.name);
+function handleZip(file) {
+    var zip = new JSZip();
+    zip.loadAsync(file)
+        .then(function (zip) {
+            $('.zip-select span').text(file.name)
+            if (zip.files['widget.ini']) {
+                zip.files[`widget.ini`].async('string').then((data) => {
+                    pathArray = handleIniData(data);
+                    if (pathArray.length != 5) {
+                        handleUnsupported(zip)
+                        return
+                    }
 
-        if (zip.files['widget.ini']) {
-            zip.files[`widget.ini`].async('string').then((data) => {
-                try {
-                    readFiles(zip, parseIniManifest(data));
-                } catch (err) {
-                    alert('This widget was not set up properly. Opening manual upload dialog...')
-                    handleUnsupported(zip);
-                }
-            });
-        } else if (zip.files['manifest.json']) {
-            zip.files['manifest.json'].async('string').then((data) => {
-                try {
-                    readFiles(zip, parseJsonManifest(data));
-                } catch (err) {
-                    alert('This widget was not set up properly. Opening manual upload dialog...')
-                    handleUnsupported(zip);
-                }
-            });
-        } else {
-            handleUnsupported(zip);
-        }
-    });
+                    if (!zip.files[`${pathArray[0]}`] ||
+                        !zip.files[`${pathArray[1]}`] ||
+                        !zip.files[`${pathArray[2]}`] ||
+                        !zip.files[`${pathArray[3]}`] ||
+                        !zip.files[`${pathArray[4]}`]) {
+                        alert('This widget was not set up properly. Opening manual upload dialog...')
+                        handleUnsupported(zip)
+                        return
+                    }
+                    readFiles(zip, pathArray);
+                });
+            } else if (zip.files['manifest.json']) {
+                zip.files['manifest.json'].async('string').then((data) => {
+                    try {
+                        readFiles(zip, parseJsonManifest(data));
+                    } catch(err) {
+                        alert('The included manifest.json was malformed. '
+                            + 'Please re-package your widget.');
+                        handleUnsupported(zip);
+                    }
+                });
+            } else {
+                handleUnsupported(zip);
+            }
+        });
+}
+
+function parseJsonManifest(jsonData) {
+    const json = JSON.parse(jsonData);
+    if (!json || !json.fileMap) {
+        throw new Error('Invalid manifest.json');
+    }
+    const { html, css, js, fields, data } = json.fileMap;
+    return [html, css, js, fields, data];
 }
 
 function handleUnsupported(zip) {
+    // alert("This widget is not supported.")
     resetSession()
 
     waitForElm('#sigma-create-unsupported').then(() => {
@@ -142,67 +163,64 @@ function handleUnsupported(zip) {
     })
 }
 
-function parseIniManifest(data) {
-    const iniKeyOutKeyMap = {
-        '[HTML]': 'html',
-        '[CSS]': 'css',
-        '[JS]': 'js',
-        '[FIELDS]': 'fields',
-        '[DATA]': 'data'
-    };
-
-    const outputFile = Object.fromEntries(
-        Object.values(iniKeyOutKeyMap).map((k) => [k, undefined]),
-    );
-
-    const lines = data.split('\n');
-    for (let i = 0; i < lines.length; i += 1) {
-        Object.keys(iniKeyOutKeyMap).forEach((k) => {
-            if (iniKeyOutKeyMap[k] !== undefined) {
-                throw new Error('Malformed ini file.');
-            }
-            if (lines[i].includes(k)) {
-                outputFile[iniKeyOutKeyMap[k]] = lines[i + 1].split('"');
-            }
-        });
-    }
-
-    // At this point, we should have populated every field.
-    Object.keys(iniKeyOutKeyMap).forEach((k) => {
-        if (iniKeyOutKeyMap[k] === undefined) {
-            throw new Error('Malformed ini file.');
+function handleIniData(data) {
+    var lines = data.split('\n');
+    var pathArray = [];
+    for (var i = 0; i < lines.length; i++) {
+        if (lines[i].includes('[HTML]')) {
+            var _temp = lines[i + 1].split('"');
+            pathArray.push(_temp[1]);
         }
-    });
 
-    return outputFile;
-}
+        if (lines[i].includes('[CSS]')) {
+            var _temp = lines[i + 1].split('"');
+            pathArray.push(_temp[1]);
+        }
 
-function parseJsonManifest(data) {
-    const files = JSON.parse(data).fileMap;
-    if (!files) {
-        throw new Error('Malformed json file');
+        if (lines[i].includes('[JS]')) {
+            var _temp = lines[i + 1].split('"');
+            pathArray.push(_temp[1]);
+        }
+
+        if (lines[i].includes('[FIELDS]')) {
+            var _temp = lines[i + 1].split('"');
+            pathArray.push(_temp[1]);
+        }
+
+        if (lines[i].includes('[DATA]')) {
+            var _temp = lines[i + 1].split('"');
+            pathArray.push(_temp[1]);
+        }
     }
 
-    return files;
+    return pathArray;
 }
 
-function readFiles(zip, pathObj) {
-    const sourceCode = { html: '', css: '', js: '', fields: '', data: '' };
-
-    let fieldsLeft = Object.keys(sourceCode).length;
-    Object.keys(sourceCode).forEach((k) => {
-        zip.files[pathObj[k]].async('string').then((data) => {
-            sourceCode[k] = data;
-            fieldsLeft--;
-
-            if (fieldsLeft === 0) {
-                window.postMessage([
-                    [sourceCode.html, sourceCode.css, sourceCode.js, sourceCode.fields, sourceCode.data],
-                    'zip'
-                ]);
-            }
+function readFiles(zip, pathArray) {
+    var htmlCode, cssCode, jsCode, fieldsCode, dataCode;
+    zip.files[`${pathArray[0]}`].async('string')
+        .then((data) => {
+            htmlCode = data;
+            zip.files[`${pathArray[1]}`].async('string')
+                .then((data) => {
+                    cssCode = data;
+                    zip.files[`${pathArray[2]}`].async('string')
+                        .then((data) => {
+                            jsCode = data;
+                            zip.files[`${pathArray[3]}`].async('string')
+                                .then((data) => {
+                                    fieldsCode = data;
+                                    zip.files[`${pathArray[4]}`].async('string')
+                                        .then((data) => {
+                                            dataCode = data;
+                                            code = [htmlCode, cssCode, jsCode, fieldsCode, dataCode]
+                                            window.postMessage([code, 'zip'])
+                                            return
+                                        });
+                                });
+                        });
+                });
         });
-    })
 }
 
 function handleCode(path) {
@@ -366,7 +384,7 @@ waitForElm('#zip').then(() => {
     $('#zip').on("change", function (evt) {
         var files = evt.target.files;
         for (var i = 0; i < files.length; i++) {
-            loadZipAndPopulateSeInputFields(files[i]);
+            handleZip(files[i]);
         }
     });
 });
