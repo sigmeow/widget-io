@@ -142,18 +142,6 @@ function handleUnsupported(zip) {
     })
 }
 
-/**
- * This function returns the ini-based manifest of a widget. This object will
- * appear as: {
- *     html: 'example.html',
- *     css: 'example.css',
- *     js: 'example.js',
- *     fields: 'example.json',
- *     data: 'example-data.json',
- * }
- *
- * If a failure case has occurred, this plugin will throw an `Error`.
- */
 function parseIniManifest(data) {
     const iniKeyOutKeyMap = {
         '[HTML]': 'html',
