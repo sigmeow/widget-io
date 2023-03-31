@@ -78,12 +78,18 @@ function handleZip(file) {
     zip.loadAsync(file)
         .then(function (zip) {
             $('.zip-select span').text(file.name)
-            if (!zip.files[`widget.ini`]) {
-                handleUnsupported(zip)
-                return
-            }
-            zip.files[`widget.ini`].async('string')
-                .then((data) => {
+            if (zip.files['manifest.json']) {
+                zip.files['manifest.json'].async('string').then((data) => {
+                    try {
+                        readFiles(zip, parseJsonManifest(data));
+                    } catch(err) {
+                        alert('The included manifest.json was malformed. '
+                            + 'Please re-package your widget.');
+                        handleUnsupported(zip);
+                    }
+                });
+            } else if (zip.files['widget.ini']) {
+                zip.files[`widget.ini`].async('string').then((data) => {
                     pathArray = handleIniData(data);
                     if (pathArray.length != 5) {
                         handleUnsupported(zip)
@@ -100,8 +106,20 @@ function handleZip(file) {
                         return
                     }
                     readFiles(zip, pathArray);
-                })
+                });
+            } else {
+                handleUnsupported(zip);
+            }
         });
+}
+
+function parseJsonManifest(jsonData) {
+    const json = JSON.parse(jsonData);
+    if (!json || !json.fileMap) {
+        throw new Error('Invalid manifest.json');
+    }
+    const { html, css, js, fields, data } = json.fileMap;
+    return [html, css, js, fields, data];
 }
 
 function handleUnsupported(zip) {
