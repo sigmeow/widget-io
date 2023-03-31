@@ -163,13 +163,9 @@ function parseIniManifest(data) {
         '[DATA]': 'data'
     };
 
-    const outputFile = {
-        html: undefined,
-        css: undefined,
-        js: undefined,
-        fields: undefined,
-        data: undefined,
-    };
+    const outputFile = Object.fromEntries(
+        Object.values(iniKeyOutKeyMap).map((k) => [k, undefined]),
+    );
 
     const lines = data.split('\n');
     for (let i = 0; i < lines.length; i += 1) {
